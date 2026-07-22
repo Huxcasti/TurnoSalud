@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% block title %}Tomar turno | TurnoSalud{% endblock %}{% block page %}paciente{% endblock %}
+{% block content %}
+<section class="card patient-card" id="form-card">
+  <div class="eyebrow">Laboratorio Central</div><h1>¿En qué podemos ayudarle?</h1>
+  <p class="lead">Confirme que está cerca, seleccione un servicio y tome su turno.</p>
+  <div id="location-box" class="location-box"><span class="status-dot"></span><span id="location-text">Necesitamos verificar su ubicación.</span></div>
+  <button id="verify-location" class="button secondary">Verificar mi ubicación</button>
+  <div id="patient-error" class="alert hidden" role="alert"></div>
+  <fieldset id="patient-fields" disabled>
+    <legend>1. Seleccione un servicio</legend>
+    <div class="services">
+      <button type="button" class="service" data-service="Análisis de sangre"><span>🩸</span>Análisis de sangre</button>
+      <button type="button" class="service" data-service="Entrega de muestras"><span>🧪</span>Entrega de muestras</button>
+      <button type="button" class="service" data-service="Recoger resultados"><span>📄</span>Recoger resultados</button>
+      <button type="button" class="service" data-service="Registro o facturación"><span>🏥</span>Registro o facturación</button>
+    </div>
+    <label for="name">2. Nombre y apellido</label><input id="name" maxlength="80" autocomplete="name" placeholder="Ejemplo: María Rivera">
+    <label for="phone">Teléfono <small>(opcional)</small></label><input id="phone" maxlength="20" inputmode="tel" autocomplete="tel" placeholder="787-000-0000">
+    <button type="button" id="take-ticket" class="button primary">Tomar mi turno</button>
+  </fieldset>
+</section>
+<section class="card confirmation hidden" id="confirmation">
+  <div class="success">✓</div><h1>¡Su turno está listo!</h1><p>Guarde este número y espere a ser llamado.</p>
+  <div class="ticket-number" id="ticket-number">A-001</div>
+  <div class="fact-grid"><div><strong id="ahead">0</strong><span>personas delante</span></div><div><strong id="wait">5 min</strong><span>espera aproximada</span></div></div>
+  <p class="service-result" id="service-result"></p><button id="new-ticket" class="button secondary">Tomar otro turno</button>
+</section>
+{% endblock %}
+{% block scripts %}<script>window.TURNO_CONFIG={lat:{{ latitud }},lng:{{ longitud }},radius:{{ radio }}};</script>{% endblock %}

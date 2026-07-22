@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#08765b">
+  <title>{% block title %}TurnoSalud{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  <script defer src="{{ url_for('static', filename='js/app.js') }}"></script>
+</head>
+<body data-page="{% block page %}{% endblock %}">
+  <header class="topbar">
+    <a class="brand" href="/"><span class="brand-icon">+</span><span><strong>TurnoSalud</strong><small>Turnos simples, atención más rápida</small></span></a>
+    <nav aria-label="Áreas del sistema">
+      <a href="/">Paciente</a><a href="/empleado">Empleado</a><a href="/pantalla">Pantalla</a>
+    </nav>
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
