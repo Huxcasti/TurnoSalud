@@ -11,8 +11,8 @@ from flask import Flask, jsonify, redirect, render_template, request, send_file,
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "cambie-esta-clave-en-render")
 
-LATITUD = 18.4687370
-LONGITUD = -66.2906547
+LATITUD = 18.3468054
+LONGITUD = -66.3211463
 RADIO_METROS = 500
 PIN_EMPLEADO = os.environ.get("EMPLOYEE_PIN", "1234")
 DATABASE = os.environ.get("DATABASE_PATH", os.path.join(app.instance_path, "turnosalud.db"))
