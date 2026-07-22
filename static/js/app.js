@@ -1,34 +1,40 @@
-const $ = (selector) => document.querySelector(selector);
+const $ = function (selector) {
+  return document.querySelector(selector);
+};
 
-const page = document.body.dataset.page;
+const page = document.body.getAttribute("data-page");
 
 
 /* ============================================================
-   PETICIONES AL SERVIDOR
+   CONEXIÓN CON EL SERVIDOR
    ============================================================ */
 
-async function api(url, options = {}) {
-  const response = await fetch(url, {
+async function api(url, options) {
+  options = options || {};
+
+  const config = {
+    method: options.method || "GET",
     headers: {
-      "Content-Type": "application/json",
-    },
-    ...options,
-  });
+      "Content-Type": "application/json"
+    }
+  };
+
+  if (options.body) {
+    config.body = options.body;
+  }
+
+  const response = await fetch(url, config);
 
   let data;
 
   try {
     data = await response.json();
   } catch (error) {
-    throw new Error(
-      "El servidor devolvió una respuesta inválida."
-    );
+    throw new Error("El servidor devolvió una respuesta inválida.");
   }
 
   if (!response.ok) {
-    throw new Error(
-      data.error || "Ocurrió un error."
-    );
+    throw new Error(data.error || "Ocurrió un error.");
   }
 
   return data;
@@ -36,7 +42,7 @@ async function api(url, options = {}) {
 
 
 /* ============================================================
-   MENSAJES
+   MOSTRAR ERRORES
    ============================================================ */
 
 function errorBox(selector, message) {
@@ -61,6 +67,10 @@ function beep() {
       window.AudioContext ||
       window.webkitAudioContext;
 
+    if (!AudioContextClass) {
+      return;
+    }
+
     const context = new AudioContextClass();
     const oscillator = context.createOscillator();
     const gain = context.createGain();
@@ -72,205 +82,178 @@ function beep() {
     gain.gain.value = 0.08;
 
     oscillator.start();
-    oscillator.stop(
-      context.currentTime + 0.22
-    );
+    oscillator.stop(context.currentTime + 0.22);
+
   } catch (error) {
-    console.log(
-      "No se pudo reproducir el sonido.",
-      error
-    );
+    console.log("No se pudo reproducir el sonido.");
   }
 }
 
 
 /* ============================================================
-   ÁREA DEL PACIENTE
+   PÁGINA DEL PACIENTE
    ============================================================ */
 
 if (page === "paciente") {
   let locationData = null;
   let service = "";
 
-  $("#verify-location").onclick = () => {
-    if (!navigator.geolocation) {
-      errorBox(
-        "#patient-error",
-        "Este navegador no permite verificar la ubicación."
-      );
+  const verifyButton = $("#verify-location");
+  const takeTicketButton = $("#take-ticket");
+  const newTicketButton = $("#new-ticket");
 
-      return;
-    }
-
-    $("#location-text").textContent =
-      "Verificando ubicación…";
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const {
-          latitude,
-          longitude,
-          accuracy,
-        } = position.coords;
-
-        const radianes = (valor) =>
-          valor * Math.PI / 180;
-
-        const diferenciaLatitud = radianes(
-          latitude - TURNO_CONFIG.lat
-        );
-
-        const diferenciaLongitud = radianes(
-          longitude - TURNO_CONFIG.lng
-        );
-
-        const a =
-          Math.sin(
-            diferenciaLatitud / 2
-          ) ** 2
-          +
-          Math.cos(
-            radianes(TURNO_CONFIG.lat)
-          )
-          *
-          Math.cos(
-            radianes(latitude)
-          )
-          *
-          Math.sin(
-            diferenciaLongitud / 2
-          ) ** 2;
-
-        const distance =
-          6371000
-          *
-          2
-          *
-          Math.atan2(
-            Math.sqrt(a),
-            Math.sqrt(1 - a)
-          );
-
-        if (accuracy > 100) {
-          errorBox(
-            "#patient-error",
-            "La señal no es suficientemente precisa. Acérquese a una ventana e intente otra vez."
-          );
-
-          return;
-        }
-
-        if (distance > TURNO_CONFIG.radius) {
-          errorBox(
-            "#patient-error",
-            `Está aproximadamente a ${Math.round(distance)} m. Debe estar a menos de ${TURNO_CONFIG.radius} m.`
-          );
-
-          return;
-        }
-
-        locationData = {
-          latitud: latitude,
-          longitud: longitude,
-          precision: accuracy,
-        };
-
-        $("#location-box").classList.add("ok");
-
-        $("#location-text").textContent =
-          "Ubicación confirmada. Puede tomar su turno.";
-
-        $("#patient-fields").disabled = false;
-
-        $("#patient-error").classList.add("hidden");
-      },
-
-      () => {
+  if (verifyButton) {
+    verifyButton.addEventListener("click", function () {
+      if (!navigator.geolocation) {
         errorBox(
           "#patient-error",
-          "No pudimos obtener su ubicación. Permita el acceso e intente otra vez."
+          "Este navegador no permite verificar la ubicación."
         );
-      },
 
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0,
-      }
-    );
-  };
-
-
-  document
-    .querySelectorAll(".service")
-    .forEach((button) => {
-      button.onclick = () => {
-        document
-          .querySelectorAll(".service")
-          .forEach((item) => {
-            item.classList.remove("selected");
-          });
-
-        button.classList.add("selected");
-
-        service = button.dataset.service;
-      };
-    });
-
-
-  $("#take-ticket").onclick = async () => {
-    try {
-      if (!locationData) {
-        throw new Error(
-          "Primero verifique su ubicación."
-        );
+        return;
       }
 
-      const data = await api(
-        "/api/turnos",
+      $("#location-text").textContent = "Verificando ubicación…";
+
+      navigator.geolocation.getCurrentPosition(
+        function (position) {
+          const latitude = position.coords.latitude;
+          const longitude = position.coords.longitude;
+          const accuracy = position.coords.accuracy;
+
+          function radianes(valor) {
+            return valor * Math.PI / 180;
+          }
+
+          const diferenciaLatitud =
+            radianes(latitude - TURNO_CONFIG.lat);
+
+          const diferenciaLongitud =
+            radianes(longitude - TURNO_CONFIG.lng);
+
+          const a =
+            Math.sin(diferenciaLatitud / 2) ** 2 +
+            Math.cos(radianes(TURNO_CONFIG.lat)) *
+            Math.cos(radianes(latitude)) *
+            Math.sin(diferenciaLongitud / 2) ** 2;
+
+          const distance =
+            6371000 *
+            2 *
+            Math.atan2(
+              Math.sqrt(a),
+              Math.sqrt(1 - a)
+            );
+
+          if (accuracy > 100) {
+            errorBox(
+              "#patient-error",
+              "La señal no es suficientemente precisa. Acérquese a una ventana e intente otra vez."
+            );
+
+            return;
+          }
+
+          if (distance > TURNO_CONFIG.radius) {
+            errorBox(
+              "#patient-error",
+              "Está aproximadamente a " +
+              Math.round(distance) +
+              " m. Debe estar a menos de " +
+              TURNO_CONFIG.radius +
+              " m."
+            );
+
+            return;
+          }
+
+          locationData = {
+            latitud: latitude,
+            longitud: longitude,
+            precision: accuracy
+          };
+
+          $("#location-box").classList.add("ok");
+
+          $("#location-text").textContent =
+            "Ubicación confirmada. Puede tomar su turno.";
+
+          $("#patient-fields").disabled = false;
+          $("#patient-error").classList.add("hidden");
+        },
+
+        function () {
+          errorBox(
+            "#patient-error",
+            "No pudimos obtener su ubicación. Permita el acceso e intente otra vez."
+          );
+        },
+
         {
-          method: "POST",
-          body: JSON.stringify({
-            ...locationData,
-            nombre: $("#name").value,
-            telefono: $("#phone").value,
-            servicio: service,
-          }),
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0
         }
       );
-
-      $("#ticket-number").textContent =
-        data.numero;
-
-      $("#ahead").textContent =
-        data.delante;
-
-      $("#wait").textContent =
-        data.espera + " min";
-
-      $("#service-result").textContent =
-        data.servicio;
-
-      $("#form-card").classList.add(
-        "hidden"
-      );
-
-      $("#confirmation").classList.remove(
-        "hidden"
-      );
-
-    } catch (error) {
-      errorBox(
-        "#patient-error",
-        error.message
-      );
-    }
-  };
+    });
+  }
 
 
-  $("#new-ticket").onclick = () => {
-    location.reload();
-  };
+  document.querySelectorAll(".service").forEach(function (button) {
+    button.addEventListener("click", function () {
+      document.querySelectorAll(".service").forEach(function (item) {
+        item.classList.remove("selected");
+      });
+
+      button.classList.add("selected");
+      service = button.getAttribute("data-service");
+    });
+  });
+
+
+  if (takeTicketButton) {
+    takeTicketButton.addEventListener("click", async function () {
+      try {
+        if (!locationData) {
+          throw new Error("Primero verifique su ubicación.");
+        }
+
+        if (!service) {
+          throw new Error("Seleccione el servicio que necesita.");
+        }
+
+        const data = await api("/api/turnos", {
+          method: "POST",
+          body: JSON.stringify({
+            latitud: locationData.latitud,
+            longitud: locationData.longitud,
+            precision: locationData.precision,
+            nombre: $("#name").value,
+            telefono: $("#phone").value,
+            servicio: service
+          })
+        });
+
+        $("#ticket-number").textContent = data.numero;
+        $("#ahead").textContent = data.delante;
+        $("#wait").textContent = data.espera + " min";
+        $("#service-result").textContent = data.servicio;
+
+        $("#form-card").classList.add("hidden");
+        $("#confirmation").classList.remove("hidden");
+
+      } catch (error) {
+        errorBox("#patient-error", error.message);
+      }
+    });
+  }
+
+
+  if (newTicketButton) {
+    newTicketButton.addEventListener("click", function () {
+      window.location.reload();
+    });
+  }
 }
 
 
@@ -279,93 +262,86 @@ if (page === "paciente") {
    ============================================================ */
 
 if (page === "empleado") {
-  let lastCall = null;
-  let loadingPanel = false;
+  let actualizandoPanel = false;
 
 
   /* ----------------------------------------------------------
      INICIAR SESIÓN
      ---------------------------------------------------------- */
 
-  $("#login")?.addEventListener(
-    "click",
-    async () => {
+  const loginButton = $("#login");
+
+  if (loginButton) {
+    loginButton.addEventListener("click", async function () {
       try {
-        await api(
-          "/api/login",
-          {
-            method: "POST",
-            body: JSON.stringify({
-              pin: $("#pin").value,
-            }),
-          }
-        );
+        const pinInput = $("#pin");
 
-        $("#login-card").classList.add(
-          "hidden"
-        );
+        await api("/api/login", {
+          method: "POST",
+          body: JSON.stringify({
+            pin: pinInput ? pinInput.value : ""
+          })
+        });
 
-        $("#employee-panel").classList.remove(
-          "hidden"
-        );
+        $("#login-card").classList.add("hidden");
+        $("#employee-panel").classList.remove("hidden");
 
-        await loadPanel();
+        await cargarPanel();
 
       } catch (error) {
-        errorBox(
-          "#login-error",
-          error.message
-        );
+        errorBox("#login-error", error.message);
       }
-    }
-  );
+    });
+  }
 
 
-  $("#pin")?.addEventListener(
-    "keydown",
-    (event) => {
-      if (event.key === "Enter") {
-        $("#login")?.click();
+  const pinInput = $("#pin");
+
+  if (pinInput) {
+    pinInput.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" && loginButton) {
+        loginButton.click();
       }
-    }
-  );
+    });
+  }
 
 
   /* ----------------------------------------------------------
      CERRAR SESIÓN
      ---------------------------------------------------------- */
 
-  $("#logout")?.addEventListener(
-    "click",
-    async () => {
+  const logoutButton = $("#logout");
+
+  if (logoutButton) {
+    logoutButton.addEventListener("click", async function () {
       try {
-        await api(
-          "/api/logout",
-          {
-            method: "POST",
-          }
-        );
-      } finally {
-        location.reload();
+        await api("/api/logout", {
+          method: "POST"
+        });
+
+        window.location.href = "/empleado";
+
+      } catch (error) {
+        alert(error.message);
       }
-    }
-  );
+    });
+  }
 
 
   /* ----------------------------------------------------------
-     CREAR UNA CELDA
+     CREAR CELDA
      ---------------------------------------------------------- */
 
-  function crearCelda(valor, clase = "") {
-    const td = document.createElement("td");
+  function crearCelda(valor, clase) {
+    const celda = document.createElement("td");
 
-    td.textContent = valor;
+    celda.textContent = valor;
 
     if (clase) {
-      td.className = clase;
+      celda.className = clase;
     }
 
-    return td;
+    return celda;
   }
 
 
@@ -374,13 +350,12 @@ if (page === "empleado") {
      ---------------------------------------------------------- */
 
   async function llamarPrioritario(turno) {
-    const numeroActual =
-      $("#current-number").textContent.trim();
+    const currentNumber = $("#current-number");
+    const numeroActual = currentNumber
+      ? currentNumber.textContent.trim()
+      : "—";
 
-    if (
-      numeroActual &&
-      numeroActual !== "—"
-    ) {
+    if (numeroActual !== "—") {
       alert(
         "Ya existe un turno actual. Primero debe completarlo o marcarlo ausente."
       );
@@ -388,8 +363,13 @@ if (page === "empleado") {
       return;
     }
 
-    const confirmado = confirm(
-      `¿Desea llamar ahora el turno ${turno.numero}?\n\nPaciente: ${turno.nombre}\nServicio: ${turno.servicio}`
+    const confirmado = window.confirm(
+      "¿Desea llamar ahora el turno " +
+      turno.numero +
+      "?\n\nPaciente: " +
+      turno.nombre +
+      "\nServicio: " +
+      turno.servicio
     );
 
     if (!confirmado) {
@@ -397,40 +377,33 @@ if (page === "empleado") {
     }
 
     try {
-      await api(
-        `/api/llamar/${turno.id}`,
-        {
-          method: "POST",
-        }
-      );
+      await api("/api/llamar/" + turno.id, {
+        method: "POST"
+      });
 
       beep();
-
-      await loadPanel();
+      await cargarPanel();
 
     } catch (error) {
       alert(error.message);
-
-      await loadPanel();
+      await cargarPanel();
     }
   }
 
 
   /* ----------------------------------------------------------
-     ACTUALIZAR PANEL
+     CARGAR PANEL
      ---------------------------------------------------------- */
 
-  async function loadPanel() {
-    if (loadingPanel) {
+  async function cargarPanel() {
+    if (actualizandoPanel) {
       return;
     }
 
-    loadingPanel = true;
+    actualizandoPanel = true;
 
     try {
-      const data = await api(
-        "/api/panel"
-      );
+      const data = await api("/api/panel");
 
       $("#stat-waiting").textContent =
         data.resumen.esperando;
@@ -444,192 +417,143 @@ if (page === "empleado") {
       $("#stat-total").textContent =
         data.resumen.total;
 
-      $("#current-number").textContent =
-        data.actual?.numero || "—";
+      if (data.actual) {
+        $("#current-number").textContent =
+          data.actual.numero;
 
-      $("#current-name").textContent =
-        data.actual?.nombre ||
-        "No hay paciente llamado";
+        $("#current-name").textContent =
+          data.actual.nombre;
 
-      $("#current-service").textContent =
-        data.actual?.servicio || "";
+        $("#current-service").textContent =
+          data.actual.servicio;
+      } else {
+        $("#current-number").textContent = "—";
 
-      const body = $("#queue-body");
+        $("#current-name").textContent =
+          "No hay paciente llamado";
 
-      body.textContent = "";
+        $("#current-service").textContent = "";
+      }
 
-      data.esperando.forEach(
-        (turno) => {
-          const row =
-            document.createElement("tr");
+      const queueBody = $("#queue-body");
 
-          row.className =
-            "priority-row";
+      queueBody.innerHTML = "";
 
-          row.tabIndex = 0;
+      data.esperando.forEach(function (turno) {
+        const fila = document.createElement("tr");
 
-          row.setAttribute(
-            "role",
-            "button"
-          );
+        fila.className = "priority-row";
+        fila.setAttribute("role", "button");
+        fila.setAttribute("tabindex", "0");
 
-          row.setAttribute(
-            "aria-label",
-            `Llamar turno ${turno.numero}, paciente ${turno.nombre}`
-          );
+        let minutos = 0;
 
-          const fechaCreacion =
-            Date.parse(turno.creado);
+        const fechaCreacion =
+          new Date(turno.creado).getTime();
 
-          const minutosEsperando =
-            Number.isNaN(fechaCreacion)
-              ? 0
-              : Math.max(
-                  0,
-                  Math.floor(
-                    (
-                      Date.now()
-                      -
-                      fechaCreacion
-                    )
-                    /
-                    60000
-                  )
-                );
-
-          row.appendChild(
-            crearCelda(turno.numero)
-          );
-
-          row.appendChild(
-            crearCelda(turno.nombre)
-          );
-
-          row.appendChild(
-            crearCelda(turno.servicio)
-          );
-
-          row.appendChild(
-            crearCelda(
-              `${minutosEsperando} min`
+        if (!Number.isNaN(fechaCreacion)) {
+          minutos = Math.max(
+            0,
+            Math.floor(
+              (Date.now() - fechaCreacion) / 60000
             )
           );
-
-          const actionCell =
-            document.createElement("td");
-
-          actionCell.className =
-            "queue-action-cell";
-
-          const callButton =
-            document.createElement("button");
-
-          callButton.type = "button";
-
-          callButton.className =
-            "priority-button";
-
-          callButton.textContent =
-            "Llamar";
-
-          callButton.setAttribute(
-            "aria-label",
-            `Llamar el turno ${turno.numero}`
-          );
-
-          callButton.addEventListener(
-            "click",
-            async (event) => {
-              event.stopPropagation();
-
-              await llamarPrioritario(
-                turno
-              );
-            }
-          );
-
-          actionCell.appendChild(
-            callButton
-          );
-
-          row.appendChild(
-            actionCell
-          );
-
-          row.addEventListener(
-            "click",
-            async () => {
-              await llamarPrioritario(
-                turno
-              );
-            }
-          );
-
-          row.addEventListener(
-            "keydown",
-            async (event) => {
-              if (
-                event.key === "Enter"
-                ||
-                event.key === " "
-              ) {
-                event.preventDefault();
-
-                await llamarPrioritario(
-                  turno
-                );
-              }
-            }
-          );
-
-          body.appendChild(row);
         }
-      );
+
+        fila.appendChild(
+          crearCelda(turno.numero)
+        );
+
+        fila.appendChild(
+          crearCelda(turno.nombre)
+        );
+
+        fila.appendChild(
+          crearCelda(turno.servicio)
+        );
+
+        fila.appendChild(
+          crearCelda(minutos + " min")
+        );
+
+        const celdaAccion =
+          document.createElement("td");
+
+        celdaAccion.className =
+          "queue-action-cell";
+
+        const botonLlamar =
+          document.createElement("button");
+
+        botonLlamar.type = "button";
+        botonLlamar.className = "priority-button";
+        botonLlamar.textContent = "Llamar";
+
+        botonLlamar.addEventListener(
+          "click",
+          function (event) {
+            event.stopPropagation();
+            llamarPrioritario(turno);
+          }
+        );
+
+        celdaAccion.appendChild(botonLlamar);
+        fila.appendChild(celdaAccion);
+
+        fila.addEventListener(
+          "click",
+          function () {
+            llamarPrioritario(turno);
+          }
+        );
+
+        fila.addEventListener(
+          "keydown",
+          function (event) {
+            if (
+              event.key === "Enter" ||
+              event.key === " "
+            ) {
+              event.preventDefault();
+              llamarPrioritario(turno);
+            }
+          }
+        );
+
+        queueBody.appendChild(fila);
+      });
 
       $("#queue-empty").classList.toggle(
         "hidden",
         data.esperando.length > 0
       );
 
-      lastCall =
-        data.actual?.llamado ||
-        lastCall;
-
     } catch (error) {
-      if (
-        error.message ===
-        "Sesión requerida."
-      ) {
-        location.reload();
+      console.error(error);
 
-        return;
+      if (
+        error.message === "Sesión requerida."
+      ) {
+        window.location.href = "/empleado";
       }
 
-      console.error(
-        "No se pudo actualizar el panel:",
-        error
-      );
-
     } finally {
-      loadingPanel = false;
+      actualizandoPanel = false;
     }
   }
 
 
   /* ----------------------------------------------------------
-     REALIZAR ACCIONES
+     ACCIÓN GENERAL
      ---------------------------------------------------------- */
 
-  async function action(url) {
+  async function ejecutarAccion(url) {
     try {
-      await api(
-        url,
-        {
-          method: "POST",
-        }
-      );
+      await api(url, {
+        method: "POST"
+      });
 
-      await loadPanel();
+      await cargarPanel();
 
     } catch (error) {
       alert(error.message);
@@ -641,140 +565,144 @@ if (page === "empleado") {
      LLAMAR SIGUIENTE
      ---------------------------------------------------------- */
 
-  $("#next")?.addEventListener(
-    "click",
-    async () => {
-      try {
-        await api(
-          "/api/siguiente",
-          {
-            method: "POST",
-          }
-        );
+  const nextButton = $("#next");
 
-        beep();
+  if (nextButton) {
+    nextButton.addEventListener(
+      "click",
+      async function () {
+        try {
+          await api("/api/siguiente", {
+            method: "POST"
+          });
 
-        await loadPanel();
+          beep();
+          await cargarPanel();
 
-      } catch (error) {
-        alert(error.message);
+        } catch (error) {
+          alert(error.message);
+        }
       }
-    }
-  );
+    );
+  }
 
 
   /* ----------------------------------------------------------
      VOLVER A LLAMAR
      ---------------------------------------------------------- */
 
-  $("#recall")?.addEventListener(
-    "click",
-    () => {
-      const numero =
-        $("#current-number")
-          .textContent
-          .trim();
+  const recallButton = $("#recall");
 
-      if (numero === "—") {
+  if (recallButton) {
+    recallButton.addEventListener(
+      "click",
+      function () {
+        const numero =
+          $("#current-number").textContent.trim();
+
+        if (numero === "—") {
+          alert("No hay un turno actual.");
+          return;
+        }
+
+        beep();
+
         alert(
-          "No hay un turno actual."
+          "Se volvió a llamar el turno " +
+          numero
         );
-
-        return;
       }
-
-      beep();
-
-      alert(
-        `Se volvió a llamar el turno ${numero}`
-      );
-    }
-  );
+    );
+  }
 
 
   /* ----------------------------------------------------------
-     AUSENTE
+     MARCAR AUSENTE
      ---------------------------------------------------------- */
 
-  $("#absent")?.addEventListener(
-    "click",
-    async () => {
-      const numero =
-        $("#current-number")
-          .textContent
-          .trim();
+  const absentButton = $("#absent");
 
-      if (numero === "—") {
-        alert(
-          "No hay un turno actual."
+  if (absentButton) {
+    absentButton.addEventListener(
+      "click",
+      async function () {
+        const numero =
+          $("#current-number").textContent.trim();
+
+        if (numero === "—") {
+          alert("No hay un turno actual.");
+          return;
+        }
+
+        const confirmado = window.confirm(
+          "¿Desea marcar el turno " +
+          numero +
+          " como ausente?"
         );
 
-        return;
+        if (!confirmado) {
+          return;
+        }
+
+        await ejecutarAccion(
+          "/api/finalizar/ausente"
+        );
       }
-
-      const confirmado = confirm(
-        `¿Desea marcar el turno ${numero} como ausente?`
-      );
-
-      if (!confirmado) {
-        return;
-      }
-
-      await action(
-        "/api/finalizar/ausente"
-      );
-    }
-  );
+    );
+  }
 
 
   /* ----------------------------------------------------------
-     COMPLETAR
+     COMPLETAR TURNO
      ---------------------------------------------------------- */
 
-  $("#complete")?.addEventListener(
-    "click",
-    async () => {
-      const numero =
-        $("#current-number")
-          .textContent
-          .trim();
+  const completeButton = $("#complete");
 
-      if (numero === "—") {
-        alert(
-          "No hay un turno actual."
+  if (completeButton) {
+    completeButton.addEventListener(
+      "click",
+      async function () {
+        const numero =
+          $("#current-number").textContent.trim();
+
+        if (numero === "—") {
+          alert("No hay un turno actual.");
+          return;
+        }
+
+        const confirmado = window.confirm(
+          "¿Desea completar el turno " +
+          numero +
+          "?"
         );
 
-        return;
+        if (!confirmado) {
+          return;
+        }
+
+        await ejecutarAccion(
+          "/api/finalizar/completado"
+        );
       }
-
-      const confirmado = confirm(
-        `¿Desea completar el turno ${numero}?`
-      );
-
-      if (!confirmado) {
-        return;
-      }
-
-      await action(
-        "/api/finalizar/completado"
-      );
-    }
-  );
+    );
+  }
 
 
   /* ----------------------------------------------------------
-     INICIAR ACTUALIZACIÓN AUTOMÁTICA
+     INICIAR PANEL
      ---------------------------------------------------------- */
+
+  const employeePanel =
+    $("#employee-panel");
 
   if (
-    !$("#employee-panel")
-      ?.classList
-      .contains("hidden")
+    employeePanel &&
+    !employeePanel.classList.contains("hidden")
   ) {
-    loadPanel();
+    cargarPanel();
 
-    setInterval(
-      loadPanel,
+    window.setInterval(
+      cargarPanel,
       3000
     );
   }
@@ -786,53 +714,51 @@ if (page === "empleado") {
    ============================================================ */
 
 if (page === "pantalla") {
-  let last = null;
+  let ultimoLlamado = null;
 
-
-  async function refresh() {
+  async function actualizarPantalla() {
     try {
-      const data = await api(
-        "/api/actual"
-      );
+      const data = await api("/api/actual");
 
-      $("#screen-number").textContent =
-        data.actual?.numero || "—";
+      if (data.actual) {
+        $("#screen-number").textContent =
+          data.actual.numero;
 
-      $("#screen-message").textContent =
-        data.actual
-          ? "Pase al área de servicio"
-          : "Espere a que llamen su turno";
+        $("#screen-message").textContent =
+          "Pase al área de servicio";
 
-      $("#screen-service").textContent =
-        data.actual?.servicio || "";
+        $("#screen-service").textContent =
+          data.actual.servicio;
 
-      if (
-        data.actual?.llamado
-        &&
-        last
-        &&
-        data.actual.llamado !== last
-      ) {
-        beep();
+        if (
+          ultimoLlamado &&
+          data.actual.llamado !== ultimoLlamado
+        ) {
+          beep();
+        }
+
+        ultimoLlamado =
+          data.actual.llamado;
+      } else {
+        $("#screen-number").textContent = "—";
+
+        $("#screen-message").textContent =
+          "Espere a que llamen su turno";
+
+        $("#screen-service").textContent = "";
+
+        ultimoLlamado = null;
       }
 
-      last =
-        data.actual?.llamado ||
-        null;
-
     } catch (error) {
-      console.error(
-        "No se pudo actualizar la pantalla:",
-        error
-      );
+      console.error(error);
     }
   }
 
+  actualizarPantalla();
 
-  refresh();
-
-  setInterval(
-    refresh,
+  window.setInterval(
+    actualizarPantalla,
     2000
   );
 }
