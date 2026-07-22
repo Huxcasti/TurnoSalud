@@ -2,7 +2,7 @@ const $ = function (selector) {
   return document.querySelector(selector);
 };
 
-const page = document.body.getAttribute("data-page");
+const page = (document.body.getAttribute("data-page") || "").trim();
 
 
 /* ============================================================
