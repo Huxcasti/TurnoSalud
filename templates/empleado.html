@@ -1,9 +1,312 @@
-{% extends "base.html" %}{% block title %}Panel del empleado | TurnoSalud{% endblock %}{% block page %}empleado{% endblock %}
+{% extends "base.html" %}
+
+{% block title %}
+Panel del empleado | TurnoSalud
+{% endblock %}
+
+{% block page %}
+empleado
+{% endblock %}
+
 {% block content %}
-<section class="card login-card {% if autenticado %}hidden{% endif %}" id="login-card"><div class="eyebrow">Acceso privado</div><h1>Área del empleado</h1><p>Ingrese el PIN del laboratorio.</p><div id="login-error" class="alert hidden"></div><label for="pin">PIN</label><input id="pin" type="password" inputmode="numeric" maxlength="12" placeholder="••••"><button id="login" class="button primary">Entrar</button></section>
-<section id="employee-panel" class="{% if not autenticado %}hidden{% endif %}">
-  <div class="dashboard-heading"><div><div class="eyebrow">Operación en vivo</div><h1>Panel de turnos</h1></div><button id="logout" class="button ghost">Cerrar sesión</button></div>
-  <div class="stats"><article><strong id="stat-waiting">0</strong><span>Esperando</span></article><article><strong id="stat-completed">0</strong><span>Atendidos</span></article><article><strong id="stat-absent">0</strong><span>Ausentes</span></article><article><strong id="stat-total">0</strong><span>Total hoy</span></article></div>
-  <div class="dashboard-grid"><section class="card current"><span>Turno actual</span><strong id="current-number">—</strong><h2 id="current-name">No hay paciente llamado</h2><p id="current-service"></p><button id="next" class="button primary">Llamar siguiente</button><button id="recall" class="button dark">Volver a llamar</button><div class="split"><button id="absent" class="button warning">Ausente</button><button id="complete" class="button secondary">Completar</button></div></section>
-  <section class="card queue"><div class="queue-heading"><div><span>Fila activa</span><h2>Pacientes en espera</h2></div><span class="live">● En vivo</span></div><div class="table-wrap"><table><thead><tr><th>Turno</th><th>Paciente</th><th>Servicio</th><th>Espera</th></tr></thead><tbody id="queue-body"></tbody></table></div><div class="empty" id="queue-empty">Todavía no hay pacientes esperando.</div></section></div>
-</section>{% endblock %}
+
+<style>
+  .priority-help {
+    margin: 12px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  #queue-body tr.priority-row {
+    cursor: pointer;
+    transition:
+      background 0.15s ease,
+      transform 0.12s ease;
+  }
+
+  #queue-body tr.priority-row:hover {
+    background: rgba(11, 146, 112, 0.09);
+  }
+
+  #queue-body tr.priority-row:active {
+    background: rgba(11, 146, 112, 0.18);
+    transform: scale(0.995);
+  }
+
+  #queue-body tr.priority-row:focus {
+    outline: 2px solid var(--green2);
+    outline-offset: -2px;
+  }
+
+  .priority-button {
+    min-height: 42px;
+    padding: 8px 14px;
+    margin: 0;
+
+    border: 1px solid var(--green);
+    border-radius: 11px;
+
+    background: var(--soft);
+    color: var(--green2);
+
+    font: 800 14px inherit;
+
+    cursor: pointer;
+
+    white-space: nowrap;
+  }
+
+  .priority-button:active {
+    transform: scale(0.96);
+  }
+
+  .priority-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .queue-action-heading,
+  .queue-action-cell {
+    text-align: right;
+  }
+
+  @media (max-width: 760px) {
+    .queue-action-heading {
+      min-width: 95px;
+    }
+
+    .priority-button {
+      min-height: 38px;
+      padding: 7px 11px;
+      font-size: 13px;
+    }
+  }
+</style>
+
+<section
+  class="card login-card {% if autenticado %}hidden{% endif %}"
+  id="login-card"
+>
+  <div class="eyebrow">
+    Acceso privado
+  </div>
+
+  <h1>
+    Área del empleado
+  </h1>
+
+  <p>
+    Ingrese el PIN del laboratorio.
+  </p>
+
+  <div
+    id="login-error"
+    class="alert hidden"
+  ></div>
+
+  <label for="pin">
+    PIN
+  </label>
+
+  <input
+    id="pin"
+    type="password"
+    inputmode="numeric"
+    maxlength="12"
+    placeholder="••••"
+  >
+
+  <button
+    id="login"
+    class="button primary"
+  >
+    Entrar
+  </button>
+</section>
+
+
+<section
+  id="employee-panel"
+  class="{% if not autenticado %}hidden{% endif %}"
+>
+
+  <div class="dashboard-heading">
+    <div>
+      <div class="eyebrow">
+        Operación en vivo
+      </div>
+
+      <h1>
+        Panel de turnos
+      </h1>
+    </div>
+
+    <button
+      id="logout"
+      class="button ghost"
+    >
+      Cerrar sesión
+    </button>
+  </div>
+
+
+  <div class="stats">
+
+    <article>
+      <strong id="stat-waiting">
+        0
+      </strong>
+
+      <span>
+        Esperando
+      </span>
+    </article>
+
+    <article>
+      <strong id="stat-completed">
+        0
+      </strong>
+
+      <span>
+        Atendidos
+      </span>
+    </article>
+
+    <article>
+      <strong id="stat-absent">
+        0
+      </strong>
+
+      <span>
+        Ausentes
+      </span>
+    </article>
+
+    <article>
+      <strong id="stat-total">
+        0
+      </strong>
+
+      <span>
+        Total hoy
+      </span>
+    </article>
+
+  </div>
+
+
+  <div class="dashboard-grid">
+
+    <section class="card current">
+
+      <span>
+        Turno actual
+      </span>
+
+      <strong id="current-number">
+        —
+      </strong>
+
+      <h2 id="current-name">
+        No hay paciente llamado
+      </h2>
+
+      <p id="current-service"></p>
+
+      <button
+        id="next"
+        class="button primary"
+      >
+        Llamar siguiente
+      </button>
+
+      <button
+        id="recall"
+        class="button dark"
+      >
+        Volver a llamar
+      </button>
+
+      <div class="split">
+
+        <button
+          id="absent"
+          class="button warning"
+        >
+          Ausente
+        </button>
+
+        <button
+          id="complete"
+          class="button secondary"
+        >
+          Completar
+        </button>
+
+      </div>
+
+    </section>
+
+
+    <section class="card queue">
+
+      <div class="queue-heading">
+
+        <div>
+          <span>
+            Fila activa
+          </span>
+
+          <h2>
+            Pacientes en espera
+          </h2>
+
+          <p class="priority-help">
+            Toque cualquier paciente para llamarlo como prioritario.
+          </p>
+        </div>
+
+        <span class="live">
+          ● En vivo
+        </span>
+
+      </div>
+
+
+      <div class="table-wrap">
+
+        <table>
+
+          <thead>
+            <tr>
+              <th>Turno</th>
+              <th>Paciente</th>
+              <th>Servicio</th>
+              <th>Espera</th>
+              <th class="queue-action-heading">
+                Acción
+              </th>
+            </tr>
+          </thead>
+
+          <tbody id="queue-body"></tbody>
+
+        </table>
+
+      </div>
+
+
+      <div
+        class="empty"
+        id="queue-empty"
+      >
+        Todavía no hay pacientes esperando.
+      </div>
+
+    </section>
+
+  </div>
+
+</section>
+
+{% endblock %}
